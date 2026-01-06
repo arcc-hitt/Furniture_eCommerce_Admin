@@ -1,7 +1,7 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { AdminLogin, ProtectedRoute, Layout } from './components';
+import { AdminLogin, ProtectedRoute, Layout, ProductList, OrderList } from './components';
 import './index.css';
 
 // Dashboard component - protected route
@@ -31,20 +31,14 @@ const Dashboard = () => (
 // Products component - protected route
 const Products = () => (
   <Layout>
-    <div className="bg-white shadow rounded-lg p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Management</h1>
-      <p className="text-gray-600">Product management will be implemented in tasks 5-6</p>
-    </div>
+    <ProductList />
   </Layout>
 );
 
 // Orders component - protected route
 const Orders = () => (
   <Layout>
-    <div className="bg-white shadow rounded-lg p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Order Management</h1>
-      <p className="text-gray-600">Order management will be implemented in task 7</p>
-    </div>
+    <OrderList />
   </Layout>
 );
 

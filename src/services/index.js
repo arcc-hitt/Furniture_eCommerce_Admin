@@ -4,16 +4,16 @@
 // Authentication services (to be implemented in task 4)
 // export * from './authService';
 
-// Product services (to be implemented in task 5)
-// export * from './productService';
+// Product services
+export * from './productService';
 
-// Category services (to be implemented in task 5)
-// export * from './categoryService';
+// Category services
+export * from './categoryService';
 
-// Order services (to be implemented in task 7)
-// export * from './orderService';
+// Order services
+export * from './orderService';
 
-// Image upload services (to be implemented in task 5)
-// export * from './storageService';
+// Image upload services
+export * from './storageService';
 
 export default {};

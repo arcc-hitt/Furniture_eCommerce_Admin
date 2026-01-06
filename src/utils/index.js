@@ -1,8 +1,8 @@
 // Utils index file
 // This file will export all utility functions for easy importing
 
-// Validation utilities (to be implemented in task 5)
-// export * from './validation';
+// Validation utilities
+export * from './validation';
 
 // Date formatting utilities
 // export * from './dateUtils';
