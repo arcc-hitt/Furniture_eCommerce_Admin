@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { 
   signInWithEmailAndPassword, 
   signOut, 
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Login function
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
@@ -130,10 +130,10 @@ export const AuthProvider = ({ children }) => {
       
       return { success: false, error: errorMessage };
     }
-  };
+  }, []);
 
   // Logout function
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await signOut(auth);
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
@@ -145,12 +145,12 @@ export const AuthProvider = ({ children }) => {
       });
       return { success: false, error: 'Logout failed. Please try again.' };
     }
-  };
+  }, []);
 
   // Clear error function
-  const clearError = () => {
+  const clearError = useCallback(() => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-  };
+  }, []);
 
   // Context value
   const value = {

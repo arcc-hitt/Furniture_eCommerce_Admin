@@ -1,8 +1,8 @@
 // Storage Service
-// Handles image upload and management with Firebase Storage
+// Handles image upload and management with Cloudinary
 
-import { storage } from '../config/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject, listAll, getMetadata } from 'firebase/storage';
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 /**
  * Validate image file
@@ -19,15 +19,15 @@ export const validateImageFile = (file) => {
   }
   
   // Check file type
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
   if (!allowedTypes.includes(file.type)) {
-    errors.push('File must be a valid image (JPEG, PNG, or WebP)');
+    errors.push('File must be a valid image (JPEG, PNG, WebP, or GIF)');
   }
   
-  // Check file size (max 5MB)
-  const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+  // Check file size (max 10MB for Cloudinary free tier)
+  const maxSize = 10 * 1024 * 1024; // 10MB in bytes
   if (file.size > maxSize) {
-    errors.push('File size must be less than 5MB');
+    errors.push('File size must be less than 10MB');
   }
   
   // Check file name
@@ -54,41 +54,95 @@ export const generateUniqueFilename = (originalName) => {
 };
 
 /**
- * Upload single image to Firebase Storage
+ * Upload single image to Cloudinary
  * @param {File} file - Image file to upload
- * @param {string} folder - Storage folder (e.g., 'products', 'categories')
+ * @param {string} folder - Folder name for organization
  * @param {Function} onProgress - Progress callback function (optional)
  * @returns {Promise<Object>} - Upload result with URL and metadata
  */
 export const uploadImage = async (file, folder = 'products', onProgress = null) => {
   try {
+    // Check if Cloudinary is configured
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error(
+        'Cloudinary is not configured. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.'
+      );
+    }
+
     // Validate file
     const validation = validateImageFile(file);
     if (!validation.isValid) {
       throw new Error(`File validation failed: ${validation.errors.join(', ')}`);
     }
     
-    // Generate unique filename
+    // Generate unique filename (without extension, Cloudinary handles it)
     const filename = generateUniqueFilename(file.name);
-    const storagePath = `${folder}/${filename}`;
+    const publicId = `${folder}/${filename.split('.')[0]}`;
     
-    // Create storage reference
-    const storageRef = ref(storage, storagePath);
+    if (onProgress) onProgress(10);
     
-    // Upload file
-    const uploadTask = await uploadBytes(storageRef, file);
+    // Create form data for Cloudinary upload
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('public_id', publicId);
+    formData.append('folder', folder);
     
-    // Get download URL
-    const downloadURL = await getDownloadURL(uploadTask.ref);
+    if (onProgress) onProgress(30);
+    
+    // Upload to Cloudinary using XMLHttpRequest for progress tracking
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(Math.min(90, 30 + progress * 0.6)); // Scale progress from 30-90%
+        }
+      };
+      
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (onProgress) onProgress(100);
+            resolve(response);
+          } catch (e) {
+            reject(new Error('Failed to parse Cloudinary response'));
+          }
+        } else {
+          try {
+            const errorResponse = JSON.parse(xhr.responseText);
+            reject(new Error(errorResponse.error?.message || 'Upload failed'));
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      };
+      
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
+      
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`);
+      xhr.timeout = 60000; // 60 second timeout
+      xhr.send(formData);
+    });
     
     return {
-      url: downloadURL,
-      path: storagePath,
+      url: result.secure_url,
+      publicId: result.public_id,
+      path: result.public_id,
       filename: filename,
       originalName: file.name,
       size: file.size,
       type: file.type,
-      uploadedAt: Date.now()
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      uploadedAt: Date.now(),
+      // Cloudinary transformations URLs
+      thumbnail: result.secure_url.replace('/upload/', '/upload/c_thumb,w_150,h_150/'),
+      medium: result.secure_url.replace('/upload/', '/upload/c_scale,w_400/')
     };
   } catch (error) {
     console.error('Error uploading image:', error);
@@ -123,33 +177,44 @@ export const uploadMultipleImages = async (files, folder = 'products', onProgres
 };
 
 /**
- * Delete image from Firebase Storage
- * @param {string} imagePath - Storage path of the image
- * @returns {Promise<void>}
+ * Delete image from Cloudinary
+ * Note: Deletion requires signed requests which need backend support
+ * For unsigned uploads, images cannot be deleted from client-side
+ * @param {string} publicId - Cloudinary public ID of the image
+ * @returns {Promise<Object>}
  */
-export const deleteImage = async (imagePath) => {
+export const deleteImage = async (publicId) => {
   try {
-    const imageRef = ref(storage, imagePath);
-    await deleteObject(imageRef);
+    // Cloudinary unsigned uploads cannot be deleted from client-side
+    // This would require a backend endpoint with signed requests
+    console.warn(
+      'Image deletion requires server-side implementation with Cloudinary API secret. Public ID:',
+      publicId
+    );
+    return { 
+      success: false, 
+      message: 'Client-side deletion not supported. Implement server-side deletion endpoint.' 
+    };
   } catch (error) {
-    console.error('Error deleting image:', error);
+    console.error('Error in delete operation:', error);
     throw error;
   }
 };
 
 /**
  * Delete multiple images
- * @param {Array} imagePaths - Array of storage paths
+ * @param {Array} publicIds - Array of Cloudinary public IDs
  * @returns {Promise<Array>} - Array of deletion results
  */
-export const deleteMultipleImages = async (imagePaths) => {
+export const deleteMultipleImages = async (publicIds) => {
   try {
-    const deletePromises = imagePaths.map(async (path) => {
+    const deletePromises = publicIds.map(async (idOrObj) => {
       try {
-        await deleteImage(path);
-        return { path, success: true };
+        const publicId = typeof idOrObj === 'string' ? idOrObj : idOrObj.publicId || idOrObj.path;
+        const result = await deleteImage(publicId);
+        return { publicId, ...result };
       } catch (error) {
-        return { path, success: false, error: error.message };
+        return { publicId: idOrObj, success: false, error: error.message };
       }
     });
     
@@ -163,29 +228,16 @@ export const deleteMultipleImages = async (imagePaths) => {
 
 /**
  * Get all images in a folder
- * @param {string} folder - Storage folder
- * @returns {Promise<Array>} - Array of image metadata
+ * Note: This requires the Admin API which needs backend support
+ * @param {string} folder - Folder name
+ * @returns {Promise<Array>} - Empty array (requires backend implementation)
  */
 export const getImagesInFolder = async (folder) => {
-  try {
-    const folderRef = ref(storage, folder);
-    const result = await listAll(folderRef);
-    
-    const imagePromises = result.items.map(async (itemRef) => {
-      const url = await getDownloadURL(itemRef);
-      return {
-        name: itemRef.name,
-        path: itemRef.fullPath,
-        url: url
-      };
-    });
-    
-    const images = await Promise.all(imagePromises);
-    return images;
-  } catch (error) {
-    console.error('Error getting images in folder:', error);
-    throw error;
-  }
+  console.warn(
+    'Listing images requires Cloudinary Admin API (server-side). Folder:',
+    folder
+  );
+  return [];
 };
 
 /**
@@ -244,49 +296,69 @@ export const resizeImage = (file, maxWidth = 800, maxHeight = 600, quality = 0.8
 };
 
 /**
- * Extract storage path from Firebase Storage URL
- * @param {string} url - Firebase Storage download URL
- * @returns {string|null} - Storage path or null if invalid URL
+ * Extract public ID from Cloudinary URL
+ * @param {string} url - Cloudinary image URL
+ * @returns {string|null} - Public ID or null if invalid URL
  */
-export const extractStoragePathFromURL = (url) => {
+export const extractPublicIdFromURL = (url) => {
   try {
-    const urlObj = new URL(url);
-    const pathMatch = urlObj.pathname.match(/\/o\/(.+)\?/);
-    if (pathMatch) {
-      return decodeURIComponent(pathMatch[1]);
-    }
-    return null;
+    // Cloudinary URLs look like: https://res.cloudinary.com/{cloud}/image/upload/v{version}/{public_id}.{format}
+    const regex = /\/upload\/(?:v\d+\/)?(.+)\.[a-z]+$/i;
+    const match = url.match(regex);
+    return match ? match[1] : null;
   } catch (error) {
-    console.error('Error extracting storage path from URL:', error);
+    console.error('Error extracting public ID from URL:', error);
     return null;
   }
 };
 
+// Legacy function - kept for backwards compatibility
+export const extractStoragePathFromURL = extractPublicIdFromURL;
+export const extractImageIdFromURL = extractPublicIdFromURL;
+
 /**
  * Get image metadata from URL
- * @param {string} url - Firebase Storage download URL
- * @returns {Promise<Object>} - Image metadata
+ * @param {string} url - Image URL
+ * @returns {Promise<Object>} - Basic image metadata
  */
 export const getImageMetadata = async (url) => {
   try {
-    const path = extractStoragePathFromURL(url);
-    if (!path) {
-      throw new Error('Invalid Firebase Storage URL');
-    }
-    
-    const imageRef = ref(storage, path);
-    const metadata = await getMetadata(imageRef);
+    const publicId = extractPublicIdFromURL(url);
     
     return {
-      name: metadata.name,
-      path: path,
-      size: metadata.size,
-      type: metadata.contentType,
-      created: metadata.timeCreated,
-      updated: metadata.updated
+      url,
+      publicId,
+      // Generate transformation URLs
+      thumbnail: url.replace('/upload/', '/upload/c_thumb,w_150,h_150/'),
+      medium: url.replace('/upload/', '/upload/c_scale,w_400/'),
+      large: url.replace('/upload/', '/upload/c_scale,w_800/')
     };
   } catch (error) {
     console.error('Error getting image metadata:', error);
     throw error;
   }
+};
+
+/**
+ * Generate Cloudinary transformation URL
+ * @param {string} url - Original Cloudinary URL
+ * @param {Object} options - Transformation options
+ * @returns {string} - Transformed URL
+ */
+export const getTransformedUrl = (url, options = {}) => {
+  const {
+    width,
+    height,
+    crop = 'scale', // scale, fill, fit, thumb, crop
+    quality = 'auto',
+    format = 'auto'
+  } = options;
+  
+  let transformation = `f_${format},q_${quality}`;
+  
+  if (width) transformation += `,w_${width}`;
+  if (height) transformation += `,h_${height}`;
+  if (crop) transformation += `,c_${crop}`;
+  
+  return url.replace('/upload/', `/upload/${transformation}/`);
 };

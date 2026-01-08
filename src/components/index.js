@@ -5,6 +5,11 @@
 export { default as AdminLogin } from './auth/AdminLogin';
 export { default as ProtectedRoute } from './auth/ProtectedRoute';
 
+// Category management components
+export { default as CategoryList } from './categories/CategoryList';
+export { default as CategoryForm } from './categories/CategoryForm';
+export { default as CategoryCard } from './categories/CategoryCard';
+
 // Product management components
 export { default as ProductList } from './products/ProductList';
 export { default as ProductForm } from './products/ProductForm';

@@ -25,7 +25,7 @@ const Header = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo and Title */}
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <h1 className="text-xl font-bold text-gray-900">
                 Furniture Admin
               </h1>
@@ -45,6 +45,12 @@ const Header = () => {
               className="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
             >
               Products
+            </button>
+            <button
+              onClick={() => navigate('/categories')}
+              className="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Categories
             </button>
             <button
               onClick={() => navigate('/orders')}

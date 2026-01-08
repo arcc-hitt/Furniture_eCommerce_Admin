@@ -1,7 +1,7 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { AdminLogin, ProtectedRoute, Layout, ProductList, OrderList } from './components';
+import { AdminLogin, ProtectedRoute, Layout, ProductList, OrderList, CategoryList } from './components';
 import './index.css';
 
 // Dashboard component - protected route
@@ -42,6 +42,13 @@ const Orders = () => (
   </Layout>
 );
 
+// Categories component - protected route
+const Categories = () => (
+  <Layout>
+    <CategoryList />
+  </Layout>
+);
+
 function App() {
   return (
     <AuthProvider>
@@ -69,6 +76,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Orders />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/categories" 
+            element={
+              <ProtectedRoute>
+                <Categories />
               </ProtectedRoute>
             } 
           />
